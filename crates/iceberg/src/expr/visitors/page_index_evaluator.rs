@@ -23,7 +23,7 @@ use fnv::FnvHashSet;
 use ordered_float::OrderedFloat;
 use parquet::arrow::arrow_reader::{RowSelection, RowSelector};
 use parquet::file::metadata::RowGroupMetaData;
-use parquet::file::page_index::column_index::ColumnIndexMetaData;
+use parquet::file::page_index::index::Index as ColumnIndexMetaData;
 use parquet::file::page_index::offset_index::OffsetIndexMetaData;
 
 use crate::expr::visitors::bound_predicate_visitor::{BoundPredicateVisitor, visit};
@@ -251,114 +251,120 @@ impl<'a> PageIndexEvaluator<'a> {
                 return Ok(None);
             }
             ColumnIndexMetaData::BOOLEAN(idx) => idx
-                .min_values_iter()
-                .zip(idx.max_values_iter())
-                .enumerate()
+                .indexes
+                .iter()
                 .zip(row_counts.iter())
-                .map(|((i, (min, max)), &row_count)| {
+                .map(|(page, &row_count)| {
                     predicate(
-                        min.map(|&val| {
+                        page.min().copied().map(|val| {
                             Datum::new(field_type.clone(), PrimitiveLiteral::Boolean(val))
                         }),
-                        max.map(|&val| {
+                        page.max().copied().map(|val| {
                             Datum::new(field_type.clone(), PrimitiveLiteral::Boolean(val))
                         }),
-                        PageNullCount::from_row_and_null_counts(row_count, idx.null_count(i)),
+                        PageNullCount::from_row_and_null_counts(row_count, page.null_count()),
                     )
                 })
                 .collect(),
             ColumnIndexMetaData::INT32(idx) => idx
-                .min_values_iter()
-                .zip(idx.max_values_iter())
-                .enumerate()
+                .indexes
+                .iter()
                 .zip(row_counts.iter())
-                .map(|((i, (min, max)), &row_count)| {
+                .map(|(page, &row_count)| {
                     predicate(
-                        min.map(|&val| Datum::new(field_type.clone(), PrimitiveLiteral::Int(val))),
-                        max.map(|&val| Datum::new(field_type.clone(), PrimitiveLiteral::Int(val))),
-                        PageNullCount::from_row_and_null_counts(row_count, idx.null_count(i)),
+                        page.min()
+                            .copied()
+                            .map(|val| Datum::new(field_type.clone(), PrimitiveLiteral::Int(val))),
+                        page.max()
+                            .copied()
+                            .map(|val| Datum::new(field_type.clone(), PrimitiveLiteral::Int(val))),
+                        PageNullCount::from_row_and_null_counts(row_count, page.null_count()),
                     )
                 })
                 .collect(),
             ColumnIndexMetaData::INT64(idx) => idx
-                .min_values_iter()
-                .zip(idx.max_values_iter())
-                .enumerate()
+                .indexes
+                .iter()
                 .zip(row_counts.iter())
-                .map(|((i, (min, max)), &row_count)| {
+                .map(|(page, &row_count)| {
                     predicate(
-                        min.map(|&val| Datum::new(field_type.clone(), PrimitiveLiteral::Long(val))),
-                        max.map(|&val| Datum::new(field_type.clone(), PrimitiveLiteral::Long(val))),
-                        PageNullCount::from_row_and_null_counts(row_count, idx.null_count(i)),
+                        page.min().copied().map(|val| {
+                            Datum::new(field_type.clone(), PrimitiveLiteral::Long(val))
+                        }),
+                        page.max().copied().map(|val| {
+                            Datum::new(field_type.clone(), PrimitiveLiteral::Long(val))
+                        }),
+                        PageNullCount::from_row_and_null_counts(row_count, page.null_count()),
                     )
                 })
                 .collect(),
             ColumnIndexMetaData::FLOAT(idx) => idx
-                .min_values_iter()
-                .zip(idx.max_values_iter())
-                .enumerate()
+                .indexes
+                .iter()
                 .zip(row_counts.iter())
-                .map(|((i, (min, max)), &row_count)| {
+                .map(|(page, &row_count)| {
                     predicate(
-                        min.map(|&val| {
+                        page.min().copied().map(|val| {
                             Datum::new(
                                 field_type.clone(),
                                 PrimitiveLiteral::Float(OrderedFloat::from(val)),
                             )
                         }),
-                        max.map(|&val| {
+                        page.max().copied().map(|val| {
                             Datum::new(
                                 field_type.clone(),
                                 PrimitiveLiteral::Float(OrderedFloat::from(val)),
                             )
                         }),
-                        PageNullCount::from_row_and_null_counts(row_count, idx.null_count(i)),
+                        PageNullCount::from_row_and_null_counts(row_count, page.null_count()),
                     )
                 })
                 .collect(),
             ColumnIndexMetaData::DOUBLE(idx) => idx
-                .min_values_iter()
-                .zip(idx.max_values_iter())
-                .enumerate()
+                .indexes
+                .iter()
                 .zip(row_counts.iter())
-                .map(|((i, (min, max)), &row_count)| {
+                .map(|(page, &row_count)| {
                     predicate(
-                        min.map(|&val| {
+                        page.min().copied().map(|val| {
                             Datum::new(
                                 field_type.clone(),
                                 PrimitiveLiteral::Double(OrderedFloat::from(val)),
                             )
                         }),
-                        max.map(|&val| {
+                        page.max().copied().map(|val| {
                             Datum::new(
                                 field_type.clone(),
                                 PrimitiveLiteral::Double(OrderedFloat::from(val)),
                             )
                         }),
-                        PageNullCount::from_row_and_null_counts(row_count, idx.null_count(i)),
+                        PageNullCount::from_row_and_null_counts(row_count, page.null_count()),
                     )
                 })
                 .collect(),
             ColumnIndexMetaData::BYTE_ARRAY(idx) => idx
-                .min_values_iter()
-                .zip(idx.max_values_iter())
-                .enumerate()
+                .indexes
+                .iter()
                 .zip(row_counts.iter())
-                .map(|((i, (min, max)), &row_count)| {
+                .map(|(page, &row_count)| {
                     predicate(
-                        min.map(|val| {
+                        page.min().map(|val| {
                             Datum::new(
                                 field_type.clone(),
-                                PrimitiveLiteral::String(String::from_utf8(val.to_vec()).unwrap()),
+                                PrimitiveLiteral::String(
+                                    String::from_utf8(val.data().to_vec()).unwrap(),
+                                ),
                             )
                         }),
-                        max.map(|val| {
+                        page.max().map(|val| {
                             Datum::new(
                                 field_type.clone(),
-                                PrimitiveLiteral::String(String::from_utf8(val.to_vec()).unwrap()),
+                                PrimitiveLiteral::String(
+                                    String::from_utf8(val.data().to_vec()).unwrap(),
+                                ),
                             )
                         }),
-                        PageNullCount::from_row_and_null_counts(row_count, idx.null_count(i)),
+                        PageNullCount::from_row_and_null_counts(row_count, page.null_count()),
                     )
                 })
                 .collect(),
@@ -906,7 +912,7 @@ mod tests {
     fn get_test_metadata(
         metadata: &ParquetMetaData,
     ) -> (
-        Vec<parquet::file::page_index::column_index::ColumnIndexMetaData>,
+        Vec<parquet::file::page_index::index::Index>,
         Vec<parquet::file::page_index::offset_index::OffsetIndexMetaData>,
         &parquet::file::metadata::RowGroupMetaData,
     ) {

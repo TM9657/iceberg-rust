@@ -27,9 +27,12 @@ use itertools::Itertools;
 use parquet::arrow::AsyncArrowWriter;
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::arrow::async_writer::AsyncFileWriter as ArrowAsyncFileWriter;
-use parquet::file::metadata::ParquetMetaData;
+use parquet::basic::ColumnOrder;
+use parquet::file::metadata::{FileMetaData, ParquetMetaData, RowGroupMetaData};
 use parquet::file::properties::WriterProperties;
 use parquet::file::statistics::Statistics;
+use parquet::format::ColumnOrder as TColumnOrder;
+use parquet::schema::types::{self, SchemaDescriptor};
 
 use super::{FileWriter, FileWriterBuilder};
 use crate::arrow::{
@@ -472,6 +475,64 @@ impl ParquetWriter {
     }
 }
 
+fn parquet_metadata_from_thrift(t_file_metadata: parquet::format::FileMetaData) -> Result<ParquetMetaData> {
+    let schema = types::from_thrift(&t_file_metadata.schema).map_err(|err| {
+        Error::new(ErrorKind::Unexpected, "Failed to decode parquet schema.").with_source(err)
+    })?;
+    let schema_descr = Arc::new(SchemaDescriptor::new(schema));
+
+    let mut row_groups = Vec::with_capacity(t_file_metadata.row_groups.len());
+    for row_group in t_file_metadata.row_groups {
+        let row_group = RowGroupMetaData::from_thrift(schema_descr.clone(), row_group)
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "Failed to decode parquet row group metadata.",
+                )
+                .with_source(err)
+            })?;
+        row_groups.push(row_group);
+    }
+
+    let column_orders = match t_file_metadata.column_orders {
+        Some(orders) => {
+            if orders.len() != schema_descr.num_columns() {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "Parquet column order length mismatch.",
+                ));
+            }
+
+            let mut parsed = Vec::with_capacity(orders.len());
+            for (i, column) in schema_descr.columns().iter().enumerate() {
+                match orders[i] {
+                    TColumnOrder::TYPEORDER(_) => {
+                        let sort_order = ColumnOrder::get_sort_order(
+                            column.logical_type(),
+                            column.converted_type(),
+                            column.physical_type(),
+                        );
+                        parsed.push(ColumnOrder::TYPE_DEFINED_ORDER(sort_order));
+                    }
+                }
+            }
+            Some(parsed)
+        }
+        None => None,
+    };
+
+    let file_metadata = FileMetaData::new(
+        t_file_metadata.version,
+        t_file_metadata.num_rows,
+        t_file_metadata.created_by,
+        t_file_metadata.key_value_metadata,
+        schema_descr,
+        column_orders,
+    );
+
+    Ok(ParquetMetaData::new(file_metadata, row_groups))
+}
+
 impl FileWriter for ParquetWriter {
     async fn write(&mut self, batch: &arrow_array::RecordBatch) -> Result<()> {
         // Skip empty batch
@@ -525,6 +586,8 @@ impl FileWriter for ParquetWriter {
         let metadata = writer.finish().await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "Failed to finish parquet writer.").with_source(err)
         })?;
+
+        let metadata = parquet_metadata_from_thrift(metadata)?;
 
         let written_size = writer.bytes_written();
 
