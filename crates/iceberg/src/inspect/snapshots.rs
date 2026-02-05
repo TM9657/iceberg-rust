@@ -151,13 +151,65 @@ mod tests {
         check_record_batches(
             batch_stream.try_collect::<Vec<_>>().await.unwrap(),
             expect![[r#"
-                Field { name: "committed_at", data_type: Timestamp(Microsecond, Some("+00:00")), nullable: false, dict_id: 0, dict_is_ordered: false, metadata: {"PARQUET:field_id": "1"} },
-                Field { name: "snapshot_id", data_type: Int64, nullable: false, dict_id: 0, dict_is_ordered: false, metadata: {"PARQUET:field_id": "2"} },
-                Field { name: "parent_id", data_type: Int64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {"PARQUET:field_id": "3"} },
-                Field { name: "operation", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {"PARQUET:field_id": "4"} },
-                Field { name: "manifest_list", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {"PARQUET:field_id": "5"} },
-                Field { name: "summary", data_type: Map(Field { name: "key_value", data_type: Struct([Field { name: "key", data_type: Utf8, nullable: false, dict_id: 0, dict_is_ordered: false, metadata: {"PARQUET:field_id": "7"} }, Field { name: "value", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {"PARQUET:field_id": "8"} }]), nullable: false, dict_id: 0, dict_is_ordered: false, metadata: {} }, false), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {"PARQUET:field_id": "6"} }"#]],
-                        expect![["committed_at: PrimitiveArray<Timestamp(Microsecond, Some(\"+00:00\"))>\n[\n  2018-01-04T21:22:35.770+00:00,\n  2019-04-12T20:29:15.770+00:00,\n],\nsnapshot_id: PrimitiveArray<Int64>\n[\n  3051729675574597004,\n  3055729675574597004,\n],\nparent_id: PrimitiveArray<Int64>\n[\n  null,\n  3051729675574597004,\n],\noperation: StringArray\n[\n  \"append\",\n  \"append\",\n],\nmanifest_list: (skipped),\nsummary: MapArray\n[\n  StructArray\n-- validity:\n[\n]\n[\n-- child 0: \"key\" (Utf8)\nStringArray\n[\n]\n-- child 1: \"value\" (Utf8)\nStringArray\n[\n]\n],\n  StructArray\n-- validity:\n[\n]\n[\n-- child 0: \"key\" (Utf8)\nStringArray\n[\n]\n-- child 1: \"value\" (Utf8)\nStringArray\n[\n]\n],\n]"]],
+                Field { "committed_at": Timestamp(µs, "+00:00"), metadata: {"PARQUET:field_id": "1"} },
+                Field { "snapshot_id": Int64, metadata: {"PARQUET:field_id": "2"} },
+                Field { "parent_id": nullable Int64, metadata: {"PARQUET:field_id": "3"} },
+                Field { "operation": nullable Utf8, metadata: {"PARQUET:field_id": "4"} },
+                Field { "manifest_list": nullable Utf8, metadata: {"PARQUET:field_id": "5"} },
+                Field { "summary": nullable Map("key_value": non-null Struct("key": non-null Utf8, metadata: {"PARQUET:field_id": "7"}, "value": Utf8, metadata: {"PARQUET:field_id": "8"}), unsorted), metadata: {"PARQUET:field_id": "6"} }"#]],
+                        expect![[r#"
+                            committed_at: PrimitiveArray<Timestamp(µs, "+00:00")>
+                            [
+                              2018-01-04T21:22:35.770+00:00,
+                              2019-04-12T20:29:15.770+00:00,
+                            ],
+                            snapshot_id: PrimitiveArray<Int64>
+                            [
+                              3051729675574597004,
+                              3055729675574597004,
+                            ],
+                            parent_id: PrimitiveArray<Int64>
+                            [
+                              null,
+                              3051729675574597004,
+                            ],
+                            operation: StringArray
+                            [
+                              "append",
+                              "append",
+                            ],
+                            manifest_list: (skipped),
+                            summary: MapArray
+                            [
+                              StructArray
+                            -- validity:
+                            [
+                            ]
+                            [
+                            -- child 0: "key" (Utf8)
+                            StringArray
+                            [
+                            ]
+                            -- child 1: "value" (Utf8)
+                            StringArray
+                            [
+                            ]
+                            ],
+                              StructArray
+                            -- validity:
+                            [
+                            ]
+                            [
+                            -- child 0: "key" (Utf8)
+                            StringArray
+                            [
+                            ]
+                            -- child 1: "value" (Utf8)
+                            StringArray
+                            [
+                            ]
+                            ],
+                            ]"#]],
             &["manifest_list"],
             Some("committed_at"),
         );

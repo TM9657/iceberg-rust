@@ -247,6 +247,7 @@ mod tests {
             temporary: false,
             definition: Default::default(),
             unbounded: Default::default(),
+            or_replace: Default::default(),
         }
     }
 
